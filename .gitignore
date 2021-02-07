@@ -1,0 +1,8 @@
+# MacOS files
+.DS_Store
+
+# For shell directory.
+/shell/history.txt
+/shell/shell
+
+# 
