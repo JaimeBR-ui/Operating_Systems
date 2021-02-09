@@ -14,6 +14,8 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <unistd.h>
+#include <sys/wait.h>
 
 // Global variables.
 std::vector<std::string> path{"Users", "Jaime"};
@@ -23,8 +25,8 @@ std::vector<std::string> history; // From oldest to newest.
 void load_history(void);
 void parse(const std::string str);
 std::string * ptostr(std::vector<std::string> path);
-void print_vector(const std::vector<std::string> & v);
-std::string * join(const std::vector<std::string> & v);
+void print_vector(std::vector<std::string> v);
+std::string * join(std::vector<std::string> v, int start);
 std::vector<std::string> * split(std::string str, char split_char);
 
 int main(void)
@@ -126,6 +128,43 @@ void parse(std::string str)
     if (result.size() == 0 || history.size() < track)
       std::cout << "Usage: replay [instruction-number]" << std::endl;
   }
+  else if (!command.compare("start") || !command.compare("background"))
+  {
+    // this whole block is not working. fix it. something with the exec call
+    int status, background = 1;
+    {
+      if (!command.compare("start"))
+        background = 0;
+      // Fork the process.
+      int pid = fork();
+      if (pid)
+      {
+        // Pid != 0 means we are running parent process.
+        if (background == 0)
+          waitpid(pid, &status, 0); // Wait for the child to exit.
+      }
+      else
+      {
+        /* pid == 0: this is the child process. now let's load the
+        "ls" program into this process and run it */
+        std::string joined_command = (* join(result, 1));
+        char executable[joined_command.size()];
+        strcpy(executable, joined_command.c_str());
+        // load it. there are more exec__ functions, try 'man 3 exec'
+        // execl takes the arguments as parameters. execv takes them as an array
+        // this is execl though, so:
+        //      exec         argv[0]  argv[1] end
+        std::cout << executable << std::endl;
+        execl(executable, executable, ptostr(path), nullptr);
+
+        /* exec does not return unless the program couldn't be started.
+        when the child process stops, the waitpid() above will return.
+        */
+      }
+    }
+    if (background == 0)
+      std::cout << status << std::endl;
+  }
 }
 
 std::vector<std::string> * split(std::string str, char split_char)
@@ -151,17 +190,19 @@ std::vector<std::string> * split(std::string str, char split_char)
   return result;
 }
 
-std::string * join(std::vector<std::string> & v)
+std::string * join(std::vector<std::string> v, int start)
 {
   std::string result;
-  for (std::string s : v)
+  for (int i = start; i < v.size(); i++)
   {
-    result += s + ' ';
+    result += v.at(i);
+    if (i - 1 < v.size())
+      result += ' ';
   }
   return new std::string(result);
 }
 
-void print_vector(const std::vector<std::string> & v)
+void print_vector(std::vector<std::string> v)
 {
   for (std::string s : v)
     std::cout << s << ' ' ;
