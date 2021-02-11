@@ -15,3 +15,5 @@ run:
 	@./shell
 ping:
 	@echo Pong!
+all:
+	make && make run
