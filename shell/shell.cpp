@@ -8,18 +8,25 @@
 // functions of a bourne shell. The main part of this assignment is to get
 // familiar with using system calls such as fork() and exec().
 
-// Library imports.
-#include <iostream>
-#include <string>
-#include <vector>
-#include <filesystem>
+// Stream imports.
+#include <istream>
 #include <fstream>
+#include <iostream>
+// System imports.
+#include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <filesystem>
+#include <sys/types.h>
+// Datastructure imports.
+#include <string>
+#include <vector>
+#include <unordered_set>
 
 // Global variables.
 std::vector<std::string> path{"Users", "Jaime"};
 std::vector<std::string> history; // From oldest to newest.
+std::unordered_set<int> child_pids;
 
 // Function headers.
 void load_history(void);
@@ -132,38 +139,107 @@ void parse(std::string str)
   {
     // this whole block is not working. fix it. something with the exec call
     int status, background = 1;
-    {
-      if (!command.compare("start"))
-        background = 0;
-      // Fork the process.
-      int pid = fork();
-      if (pid)
-      {
-        // Pid != 0 means we are running parent process.
-        if (background == 0)
-          waitpid(pid, &status, 0); // Wait for the child to exit.
-      }
-      else
-      {
-        /* pid == 0: this is the child process. now let's load the
-        "ls" program into this process and run it */
-        std::string joined_command = (* join(result, 1));
-        char executable[joined_command.size()];
-        strcpy(executable, joined_command.c_str());
-        // load it. there are more exec__ functions, try 'man 3 exec'
-        // execl takes the arguments as parameters. execv takes them as an array
-        // this is execl though, so:
-        //      exec         argv[0]  argv[1] end
-        std::cout << executable << std::endl;
-        execl(executable, executable, ptostr(path), nullptr);
 
-        /* exec does not return unless the program couldn't be started.
-        when the child process stops, the waitpid() above will return.
-        */
+    if (!command.compare("start"))
+      background = 0;
+    // Fork the process.
+    int pid = fork();
+    if (pid)
+    {
+      // Pid != 0 means we are running parent process.
+      child_pids.insert(pid);
+      if (background == 0)
+        waitpid(pid, &status, 0); // Wait for the child to exit.
+    }
+    else
+    {
+      // Pid == 0. This is the child process.
+      int fd = 0;
+      std::cout << "PID: " << getpid() << std::endl;
+      for (int i : child_pids)
+        std::cout << i << std::endl;
+      std::string joined_command = (* join(result, 2));
+      // result.push_back(*ptostr(path));
+      char ** full = (char **) malloc(sizeof(char *) * (result.size()));
+
+      for (int i = 1; i < result.size(); i++)
+      {
+        // Place executable as a char array.
+        char * executable = (char *)malloc(sizeof(char)* (result[i].length() + 1));
+
+        strcpy(executable, result[i].c_str());
+        full[i - 1] = executable;
+      }
+      // Set the last element in array to null.
+      full[result.size() - 1] = nullptr;
+      char *env[] = {(char *)0 };
+      int result = execve(full[0], full, env);
+      // std::cout << result << std::endl; // returns -1 if execution failed.
+      free(full);
+    }
+
+    // if (background == 0)
+    //   std::cout << status << std::endl;
+    if (pid == 0)
+      exit(0);
+  }
+  else if (!command.compare("dalek"))
+  {
+    if (result.size() == 1)
+    {
+      std::cout << "Usage to kill a process: dalek [PID]" << std::endl;
+    }
+    else
+    {
+      try
+      {
+        int pid = std::stoi(result[1]);
+        kill(pid, 0);
+        child_pids.erase(pid);
+      }
+      catch(std::invalid_argument ia)
+      {
+        std::cout << "Please provide a valid number." << std::endl;
       }
     }
-    if (background == 0)
-      std::cout << status << std::endl;
+  }
+  else if (!command.compare("repeat"))
+  {
+    if (result.size() > 2)
+    {
+      int amount;
+      try
+      {
+        amount = std::stoi(result[1]);
+      }
+      catch(std::invalid_argument ia)
+      {
+        std::cout << "Please provide a valid number." << std::endl;
+        return;
+      }
+      std::string rec_comm = * join(result, 2);
+      rec_comm = "start " + rec_comm;
+      std::cout << "PIDs: " << std::endl;
+      for (int i = 0; i < amount; i++)
+        parse(rec_comm);
+    }
+    else
+    {
+      std::cout << "Usage: repeat [numberOfTimes] [args]" << std::endl;
+    }
+  }
+  else if (!command.compare("dalekall"))
+  {
+    std::string out = "Exterminating ";
+    out += std::to_string(child_pids.size());
+    out += " processes: ";
+    std::cout << out << std::endl;
+    for (const int pid : child_pids)
+    {
+      kill(pid, 0);
+      std::cout << std::to_string(pid) << std::endl;
+    }
+    child_pids.clear();
   }
 }
 
@@ -192,13 +268,14 @@ std::vector<std::string> * split(std::string str, char split_char)
 
 std::string * join(std::vector<std::string> v, int start)
 {
-  std::string result;
+  std::string result = "";
   for (int i = start; i < v.size(); i++)
   {
     result += v.at(i);
     if (i - 1 < v.size())
       result += ' ';
   }
+  // std::cout << result << std::endl;
   return new std::string(result);
 }
 
