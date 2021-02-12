@@ -9,15 +9,11 @@
 // familiar with using system calls such as fork() and exec().
 
 // Stream imports.
-#include <istream>
 #include <fstream>
 #include <iostream>
 // System imports.
 #include <signal.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include <filesystem>
-#include <sys/types.h>
 // Datastructure imports.
 #include <string>
 #include <vector>
@@ -32,7 +28,6 @@ std::unordered_set<int> child_pids;
 void load_history(void);
 void parse(const std::string str);
 std::string * ptostr(std::vector<std::string> path);
-void print_vector(std::vector<std::string> v);
 std::string * join(std::vector<std::string> v, int start);
 std::vector<std::string> * split(std::string str, char split_char);
 
@@ -55,41 +50,43 @@ void parse(std::string str)
 {
   // Splits the string to extract the command and its args.
   std::vector<std::string> result = * split(str, ' ');
-  // print_vector(result);
+  // The first string is the command and the remaining are the parameters.
   std::string command = result.front();
   if (!command.compare("byebye"))
   {
+    // Open file stream.
     std::ofstream history_file;
     history_file.open ("history.txt");
+    // Save history in file.
     for (std::string s : history)
       history_file << s << '\n';
+    // Close and exit.
     history_file.close();
     exit(0);
   }
   else if (!command.compare("currentdir"))
   {
     std::string currpath = (* ptostr(path));
+    // List all the elements in the specified directory.
     for (const auto & entry : std::__fs::filesystem::directory_iterator(currpath))
         std::cout << entry.path() << std::endl;
   }
   else if (!command.compare("history"))
   {
     if (result.size() > 1 && result[1].compare("-c") == 0)
-    {
       history.clear();
-    }
     else
-    {
+      // Print in the order of most recent command first.
       for (int i = history.size() - 1; i >= 0; i--)
-        std::cout << (history.size() - i - 1) << ':' << ' ' << history[i] << std::endl;
-    }
+      {
+        std::cout << (history.size() - i - 1) << ':' ;
+        std::cout << ' ' << history[i] << std::endl;
+      }
   }
   else if (!command.compare("movetodir"))
   {
     if (result.size() == 1 || result[1] == "")
-    {
       std::cout << "Usage: movetodir [directory-path]" << std::endl;
-    }
     else if (!result[1].compare(".."))
     {
       if (path.size() > 0)
@@ -137,13 +134,19 @@ void parse(std::string str)
   }
   else if (!command.compare("start") || !command.compare("background"))
   {
-    // this whole block is not working. fix it. something with the exec call
+    // Runs binaries. You can specify a relative or absolute path.
     int status, background = 1;
 
     if (!command.compare("start"))
       background = 0;
     // Fork the process.
     int pid = fork();
+    // If we are not executing an absolute path then add path to binary.
+    std::string temp = "";
+    if (result[1][0] != '/')
+      temp = *ptostr(path);
+    temp += result[1];
+    result[1] = temp;
     if (pid)
     {
       // Pid != 0 means we are running parent process.
@@ -158,15 +161,14 @@ void parse(std::string str)
       std::cout << "PID: " << getpid() << std::endl;
       for (int i : child_pids)
         std::cout << i << std::endl;
+
       std::string joined_command = (* join(result, 2));
-      // result.push_back(*ptostr(path));
       char ** full = (char **) malloc(sizeof(char *) * (result.size()));
 
       for (int i = 1; i < result.size(); i++)
       {
         // Place executable as a char array.
         char * executable = (char *)malloc(sizeof(char)* (result[i].length() + 1));
-
         strcpy(executable, result[i].c_str());
         full[i - 1] = executable;
       }
@@ -185,22 +187,28 @@ void parse(std::string str)
   }
   else if (!command.compare("dalek"))
   {
+    // Kill a specified PID.
     if (result.size() == 1)
     {
       std::cout << "Usage to kill a process: dalek [PID]" << std::endl;
     }
     else
     {
+      int resp = 0, pid = 0;
+      // Check if the user provided a valid argument.
       try
       {
-        int pid = std::stoi(result[1]);
-        kill(pid, 0);
+        pid = std::stoi(result[1]);
+        resp = kill(pid, 0);
         child_pids.erase(pid);
       }
       catch(std::invalid_argument ia)
       {
         std::cout << "Please provide a valid number." << std::endl;
       }
+      // Process was unable to be ended.
+      if (resp < 0)
+        std::cout << "Unable to kill process " << pid << std::endl;
     }
   }
   else if (!command.compare("repeat"))
@@ -208,6 +216,7 @@ void parse(std::string str)
     if (result.size() > 2)
     {
       int amount;
+      // Check if argument given is valid.
       try
       {
         amount = std::stoi(result[1]);
@@ -217,9 +226,11 @@ void parse(std::string str)
         std::cout << "Please provide a valid number." << std::endl;
         return;
       }
+      // Format the command to be passed into parser.
       std::string rec_comm = * join(result, 2);
-      rec_comm = "start " + rec_comm;
+      rec_comm = "background " + rec_comm;
       std::cout << "PIDs: " << std::endl;
+      // Run command $amount times.
       for (int i = 0; i < amount; i++)
         parse(rec_comm);
     }
@@ -230,15 +241,20 @@ void parse(std::string str)
   }
   else if (!command.compare("dalekall"))
   {
-    std::string out = "Exterminating ";
-    out += std::to_string(child_pids.size());
-    out += " processes: ";
-    std::cout << out << std::endl;
+    // Store processes that were sucessfully exterminated.
+    std::vector<int> killed;
     for (const int pid : child_pids)
-    {
-      kill(pid, 0);
+      if (kill(pid, 0) >= 0)
+        killed.push_back(pid);
+    // Printing the amount of processes killed.
+    std::string out = "Exterminating ";
+    out += std::to_string(killed.size());
+    out += " processe(s): ";
+    std::cout << out << std::endl;
+    // Print all the killed processes.
+    for (const int pid : killed)
       std::cout << std::to_string(pid) << std::endl;
-    }
+
     child_pids.clear();
   }
 }
@@ -279,19 +295,13 @@ std::string * join(std::vector<std::string> v, int start)
   return new std::string(result);
 }
 
-void print_vector(std::vector<std::string> v)
-{
-  for (std::string s : v)
-    std::cout << s << ' ' ;
-  std::cout << std::endl;
-}
-
 void load_history(void)
 {
   std::string line;
   std::ifstream history_file ("history.txt");
-  if (history_file.is_open())
+  if (history_file.is_open()) // Opened sucessfully.
   {
+    // Load all the history to the history vector.
     while (getline(history_file,line))
       history.push_back(line);
 
@@ -301,8 +311,10 @@ void load_history(void)
 
 std::string * ptostr(std::vector<std::string> path)
 {
-  std::string stringified_path = "/";
+  std::string stringified_path = "/"; // Stack string.
+  // Append path to a string.
   for (std::string directory : path)
     stringified_path += directory + '/';
+  // Return a string created in the heap.
   return new std::string(stringified_path);
 }
