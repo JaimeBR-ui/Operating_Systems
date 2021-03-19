@@ -1,2 +1,2 @@
 # Ignore all java class files
-/Santa/*/*.class
+/Santa/*/bin/*.class
