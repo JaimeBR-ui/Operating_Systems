@@ -15,10 +15,12 @@
 #include <signal.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/wait.h>
 // Datastructure imports.
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <cstring>
 
 // Global variables.
 std::vector<std::string> path;
