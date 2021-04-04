@@ -11,10 +11,10 @@
 // Stream imports.
 #include <fstream>
 #include <iostream>
-#include <filesystem>
 // System imports.
 #include <signal.h>
 #include <unistd.h>
+#include <dirent.h>
 // Datastructure imports.
 #include <string>
 #include <vector>
@@ -53,14 +53,16 @@ void parse(std::string str)
   std::vector<std::string> result = * split(str, ' ');
   // The first string is the command and the remaining are the parameters.
   std::string command = result.front();
+  DIR *dir;
+  struct dirent *ent;
   if (!command.compare("byebye"))
   {
     // Open file stream.
     std::ofstream history_file;
     history_file.open ("history.txt");
     // Save history in file.
-    for (std::string s : history)
-      history_file << s << '\n';
+    for (int index = 0; index < history.size(); index++)
+      history_file << history[index] << '\n';
     // Close and exit.
     history_file.close();
     exit(0);
@@ -68,9 +70,15 @@ void parse(std::string str)
   else if (!command.compare("currentdir"))
   {
     std::string currpath = (* ptostr(path));
-    // List all the elements in the specified directory.
-    for (const auto & entry : std::__fs::filesystem::directory_iterator(currpath))
-        std::cout << entry.path() << std::endl;
+    if ((dir = opendir (currpath.c_str())) != nullptr) {
+      /* print all the files and directories within directory */
+      while ((ent = readdir (dir)) != nullptr) {
+        printf ("%s\n", ent->d_name);
+      }
+      closedir (dir);
+    } else {
+      perror ("");
+    }
   }
   else if (!command.compare("history"))
   {
@@ -95,15 +103,12 @@ void parse(std::string str)
     }
     else
     {
-      try
+      path.push_back(result[1]);
+      std::string currpath = (* ptostr(path));
+      if ((dir = opendir (currpath.c_str())) == nullptr)
       {
-        path.push_back(result[1]);
-        std::__fs::filesystem::directory_iterator((* ptostr(path)));
-      }
-      catch (std::__1::__fs::filesystem::filesystem_error e)
-      {
-        path.pop_back();
-        std::cout << "Directory does not exist" << std::endl;
+          path.pop_back();
+          std::cout << "Directory does not exist" << std::endl;
       }
     }
   }
@@ -160,9 +165,13 @@ void parse(std::string str)
       // Pid == 0. This is the child process.
       int fd = 0;
       std::cout << "PID: " << getpid() << std::endl;
-      for (int i : child_pids)
-        std::cout << i << std::endl;
-
+      // for (int i : child_pids)
+      //   std::cout << i << std::endl;
+      std::unordered_set<int>::iterator it;
+      for (it = child_pids.begin(); it != child_pids.end(); ++it)
+        std::cout << *it << std::endl;
+      // for (int index = 0; index < child_pids.size(); index++)
+      //   std::cout << child_pids[index] << std::endl;
       std::string joined_command = (* join(result, 2));
       char ** full = (char **) malloc(sizeof(char *) * (result.size()));
 
@@ -244,18 +253,23 @@ void parse(std::string str)
   {
     // Store processes that were sucessfully exterminated.
     std::vector<int> killed;
-    for (const int pid : child_pids)
-      if (kill(pid, 0) >= 0)
-        killed.push_back(pid);
+
+    std::unordered_set<int>::iterator it;
+    for (it = child_pids.begin(); it != child_pids.end(); ++it)
+      if (kill(*it, 0) >= 0)
+        killed.push_back(*it);
+
+    // for (const int pid : child_pids)
+    //   if (kill(pid, 0) >= 0)
+    //     killed.push_back(pid);
     // Printing the amount of processes killed.
     std::string out = "Exterminating ";
     out += std::to_string(killed.size());
-    out += " processe(s): ";
+    out += " process(es): ";
     std::cout << out << std::endl;
     // Print all the killed processes.
-    for (const int pid : killed)
-      std::cout << std::to_string(pid) << std::endl;
-
+    for (int index = 0; index < killed.size(); index++)
+      std::cout << std::to_string(killed[index]) << std::endl;
     child_pids.clear();
   }
 }
@@ -266,8 +280,9 @@ std::vector<std::string> * split(std::string str, char split_char)
   std::string word = "";
   std::vector<std::string> * result = new std::vector<std::string>;
 
-  for (auto x : str)
+  for (int i = 0; i < str.size(); i++)
   {
+    char x = str[i];
     if (x == split_char)
     {
       result->push_back(word);
@@ -314,8 +329,8 @@ std::string * ptostr(std::vector<std::string> path)
 {
   std::string stringified_path = "/"; // Stack string.
   // Append path to a string.
-  for (std::string directory : path)
-    stringified_path += directory + '/';
+  for (int index = 0; index < path.size(); index++)
+    stringified_path += path[index] + '/';
   // Return a string created in the heap.
   return new std::string(stringified_path);
 }
