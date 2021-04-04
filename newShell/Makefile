@@ -4,15 +4,15 @@
 # Programmed using Atom + iTerm2 on Mac OS Big Sur
 
 # Makefile that manages compilation, execution, and cleaning of binaries
-# belonging to shell.cpp
+# belonging to mysh.cpp
 
 make:
 	@echo Compiling...
-	@g++ --std=c++11 -o shell shell.cpp
+	@g++ -o mysh mysh.cpp
 clean:
-	@rm ./shell
+	@rm ./mysh
 run:
-	@./shell
+	@./mysh
 ping:
 	@echo Pong!
 all:

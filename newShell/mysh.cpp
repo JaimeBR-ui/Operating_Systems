@@ -2,7 +2,7 @@
 // NID: ja409704
 // COP 4600 - Operating Systems, Spring 2021
 // Programmed using Atom + iTerm2 on Mac OS Big Sur
-// Filename: shell.cpp
+// Filename: mysh.cpp
 
 // This program is a simple shell simulator that can perform many of the basic
 // functions of a bourne shell. The main part of this assignment is to get
