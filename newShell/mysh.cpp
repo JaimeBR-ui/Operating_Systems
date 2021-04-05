@@ -107,7 +107,9 @@ void parse(std::string str)
     }
     else
     {
-      path.push_back(result[1]);
+      std::vector<std::string> paths = * split(result[1], '/');
+      for (int i = 0; i < paths.size(); i++)
+        path.push_back(paths[i]);
       std::string currpath = (* ptostr(path));
       if ((dir = opendir (currpath.c_str())) == nullptr)
       {
@@ -290,10 +292,19 @@ void parse(std::string str)
       std::cout << "File or directory already exist." << std::endl;
     else
     {
-      path.push_back(result[1]);
-      // std::cout << (* ptostr(path)) << std::endl;
-      std::ofstream newfile((* ptostr(path)).c_str());
-      path.pop_back();
+
+      std::string currpath;
+      if (result[1][0] == '/')
+        // abs path
+        currpath = result[1];
+      else
+      {
+        // relative path
+        path.push_back(result[1]);
+        currpath = (* ptostr(path));
+        path.pop_back();
+      }// std::cout << (* ptostr(path)) << std::endl;
+      std::ofstream newfile(currpath.c_str());
       newfile << "Draft\n";
       newfile.close();
     }
@@ -320,20 +331,38 @@ void parse(std::string str)
     else
     {
       // perform the transfer.
-      path.push_back(result[1]);
-      std::string path1 = (* ptostr(path));
-      path.pop_back();
-      path.push_back(result[2]);
-      std::string path2 = (* ptostr(path));
-      path.pop_back();
+      std::string path1;
+      if (result[1][0] == '/')
+      {
+        path1 = result[1];
+      }
+      else
+      {
+        path.push_back(result[1]);
+        path1 = (* ptostr(path));
+        path.pop_back();
+      }
+      std::string path2;
+      if (result[2][0] == '/')
+      {
+        path2 = result[2];
+      }
+      else
+      {
+        path.push_back(result[2]);
+        path2 = (* ptostr(path));
+        path.pop_back();
+      }
+      // begin transfer
       std::string line;
       std::ifstream from_file(path1.c_str());
       std::ofstream to_file(path2.c_str());
       if (from_file.is_open()) // Opened sucessfully.
       {
-        // Load all the history to the history vector.
+        // write line by line to the target file.
         while (getline(from_file,line))
           to_file << line;
+        // close streams.
         from_file.close();
         to_file.close();
       }
@@ -345,11 +374,21 @@ int check_existance(std::vector<std::string> result, int print)
 {
   // there are 3 possibilities: dir, reg, nonex
   struct stat statbuf;
-  path.push_back(result[1]);
-  std::string currpath = (* ptostr(path));
+  std::string currpath;
+  if (result[1][0] == '/')
+  {
+    // absolute path
+    currpath = result[1];
+  }
+  else
+  {
+    // relative path
+    path.push_back(result[1]);
+    currpath = (* ptostr(path));
+    path.pop_back();
+  }
   int status = stat(currpath.c_str(), &statbuf);
-  // std::cout << currpath.c_str() << std::endl;
-  path.pop_back();
+
   if (status != 0)
     return 0;
   else if (S_ISDIR(statbuf.st_mode))
@@ -424,7 +463,7 @@ std::string * ptostr(std::vector<std::string> path)
   // Append path to a string.
   for (int index = 0; index < path.size(); index++)
     stringified_path += path[index] + '/';
-  if (stringified_path.size() > 0 &&
+  if (stringified_path.size() > 1 &&
       stringified_path[stringified_path.size() - 1] == '/')
     stringified_path[stringified_path.size() - 1] = '\0';
   // Return a string created in the heap.
