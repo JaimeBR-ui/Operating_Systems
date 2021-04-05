@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 // Datastructure imports.
 #include <string>
 #include <vector>
@@ -32,6 +33,7 @@ void load_history(void);
 void parse(const std::string str);
 std::string * ptostr(std::vector<std::string> path);
 std::string * join(std::vector<std::string> v, int start);
+int check_existance(std::vector<std::string> result, int print);
 std::vector<std::string> * split(std::string str, char split_char);
 
 int main(void)
@@ -261,9 +263,6 @@ void parse(std::string str)
       if (kill(*it, 0) >= 0)
         killed.push_back(*it);
 
-    // for (const int pid : child_pids)
-    //   if (kill(pid, 0) >= 0)
-    //     killed.push_back(pid);
     // Printing the amount of processes killed.
     std::string out = "Exterminating ";
     out += std::to_string(killed.size());
@@ -274,6 +273,98 @@ void parse(std::string str)
       std::cout << std::to_string(killed[index]) << std::endl;
     child_pids.clear();
   }
+  // Start of homework 5
+  else if (!command.compare("dwelt"))
+  {
+    if (result.size() < 2)
+      std::cout << "Usage: dwelt -[arg]" << std::endl;
+    else if (check_existance(result, 1) == 0)
+      std::cout << "Dwelt not" << std::endl;
+  }
+  else if (!command.compare("maik"))
+  {
+    // check if file doesn't exist
+    if (result.size() < 2)
+      std::cout << "Usage: maik -[arg]" << std::endl;
+    if (check_existance(result, 0) > 0)
+      std::cout << "File or directory already exist." << std::endl;
+    else
+    {
+      path.push_back(result[1]);
+      // std::cout << (* ptostr(path)) << std::endl;
+      std::ofstream newfile((* ptostr(path)).c_str());
+      path.pop_back();
+      newfile << "Draft\n";
+      newfile.close();
+    }
+  }
+  else if (!command.compare("coppy"))
+  {
+    int errors = 0;
+    if (result.size() < 3)
+    {
+      std::cout << "Usage: coppy source-path dest-path" << std::endl;
+      return;
+    }
+    // check that source is a file
+    if (check_existance(result, 0) != 2)
+      errors++;
+    // check that destination is a file
+    if (check_existance(result, 0) != 2)
+      errors++;
+    // check for errors
+    if (errors)
+    {
+      std::cout << "Error: " << errors << " Path(s) are not valid." << std::endl;
+    }
+    else
+    {
+      // perform the transfer.
+      path.push_back(result[1]);
+      std::string path1 = (* ptostr(path));
+      path.pop_back();
+      path.push_back(result[2]);
+      std::string path2 = (* ptostr(path));
+      path.pop_back();
+      std::string line;
+      std::ifstream from_file(path1.c_str());
+      std::ofstream to_file(path2.c_str());
+      if (from_file.is_open()) // Opened sucessfully.
+      {
+        // Load all the history to the history vector.
+        while (getline(from_file,line))
+          to_file << line;
+        from_file.close();
+        to_file.close();
+      }
+    }
+  }
+}
+
+int check_existance(std::vector<std::string> result, int print)
+{
+  // there are 3 possibilities: dir, reg, nonex
+  struct stat statbuf;
+  path.push_back(result[1]);
+  std::string currpath = (* ptostr(path));
+  int status = stat(currpath.c_str(), &statbuf);
+  // std::cout << currpath.c_str() << std::endl;
+  path.pop_back();
+  if (status != 0)
+    return 0;
+  else if (S_ISDIR(statbuf.st_mode))
+  {
+    if (print != 0)
+      std::cout << "Abode is" << std::endl;
+    return 1;
+  }
+  else if (S_ISREG(statbuf.st_mode))
+  {
+    if (print != 0)
+      std::cout << "Dwelt indeed" << std::endl;
+    return 2;
+  }
+  return 0;
 }
 
 std::vector<std::string> * split(std::string str, char split_char)
@@ -333,6 +424,9 @@ std::string * ptostr(std::vector<std::string> path)
   // Append path to a string.
   for (int index = 0; index < path.size(); index++)
     stringified_path += path[index] + '/';
+  if (stringified_path.size() > 0 &&
+      stringified_path[stringified_path.size() - 1] == '/')
+    stringified_path[stringified_path.size() - 1] = '\0';
   // Return a string created in the heap.
   return new std::string(stringified_path);
 }
